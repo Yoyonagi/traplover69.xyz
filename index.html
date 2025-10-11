@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>traplover69.xyz — SFW otokonoko random</title>
+  <title>traplover69.xyz — nekos.best GIFs</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="color-scheme" content="dark" />
   <style>
@@ -14,130 +14,144 @@
       font:14px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial;
     }
     img {
-      max-width:100vw; max-height:100vh;
-      object-fit:contain; display:block;
-      transition:opacity .25s ease-in-out;
-      opacity:0;
+      max-width:100vw; max-height:100vh; object-fit:contain; display:block;
+      transition: opacity .25s ease-in-out; opacity:0;
     }
     .loaded { opacity:1; }
     .hud {
-      position:fixed; right:12px; top:12px; display:flex; gap:8px; pointer-events:none;
+      position:fixed; inset:12px 12px auto auto; display:flex; gap:8px; align-items:center;
+      background:rgba(18,18,30,.6); border:1px solid rgba(255,255,255,.1);
+      padding:8px; border-radius:12px; backdrop-filter: blur(6px);
     }
-    .btn {
-      pointer-events:auto; cursor:pointer;
-      padding:8px 10px; border-radius:10px;
-      background:rgba(30,30,48,.85);
-      border:1px solid rgba(255,255,255,.12);
-      color:#e9e9f1;
+    select, button {
+      background:#1a1a2b; color:#e9e9f1;
+      border:1px solid rgba(255,255,255,.12); border-radius:10px;
+      padding:8px 10px; cursor:pointer;
+    }
+    .help {
+      position:fixed; left:12px; bottom:12px;
+      background:rgba(12,12,20,.55); border:1px solid rgba(255,255,255,.08);
+      border-radius:10px; padding:6px 8px; font-size:12px; color:#9aa0a6;
+      backdrop-filter: blur(4px); pointer-events:none;
     }
     .log {
       position:fixed; left:12px; top:12px;
-      max-width:min(80vw,760px);
-      background:rgba(0,0,0,.55);
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:8px; padding:6px 8px;
-      font:12px/1.3 ui-monospace, Menlo, Consolas, monospace;
-      color:#b7c0ff; white-space:pre-wrap; pointer-events:none;
+      background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.12);
+      border-radius:8px; padding:6px 8px; font:12px/1.3 ui-monospace, Menlo, Consolas, monospace;
+      color:#b7c0ff; max-width:min(80vw,700px); white-space:pre-wrap; pointer-events:none;
     }
   </style>
 </head>
 <body>
-  <!-- click / Space / Enter / R = shuffle -->
-  <img id="pic" alt="SFW otokonoko image" />
-  <div class="hud">
-    <button id="copyLink" class="btn" title="Copy image URL">Copy link</button>
-    <button id="shuffle" class="btn" title="Shuffle (Space / Enter / R)">Shuffle</button>
+  <img id="pic" alt="nekos.best gif" />
+
+  <div class="hud" id="hud">
+    <label for="cat" style="font-size:12px;opacity:.8">Category</label>
+    <select id="cat">
+      <option value="__random__">Random</option>
+      <!-- GIF categories from nekos.best -->
+      <option>angry</option><option>baka</option><option>bite</option><option>blush</option>
+      <option>bored</option><option>cry</option><option>cuddle</option><option>dance</option>
+      <option>facepalm</option><option>feed</option><option>handhold</option><option>handshake</option>
+      <option>happy</option><option>highfive</option><option>hug</option><option>kick</option>
+      <option>kiss</option><option>laugh</option><option>lurk</option><option>nod</option>
+      <option>nom</option><option>nope</option><option>pat</option><option>peck</option>
+      <option>poke</option><option>pout</option><option>punch</option><option>run</option>
+      <option>shoot</option><option>shrug</option><option>slap</option><option>sleep</option>
+      <option>smile</option><option>smug</option><option>stare</option><option>think</option>
+      <option>thumbsup</option><option>tickle</option><option>wave</option><option>wink</option>
+      <option>yawn</option><option>yeet</option>
+    </select>
+    <button id="shuffle">Shuffle</button>
+    <button id="copy">Copy link</button>
   </div>
+
+  <div class="help">click to shuffle • Space/Enter/R = shuffle • C = copy link</div>
   <div id="log" class="log" aria-live="polite"></div>
 
   <script>
-  /*
-    How to use:
-    1) Option A — edit the EMBEDDED list below (IMAGES array) with your SFW otokonoko URLs
-       (ex: direct file_url from Gelbooru like https://img3.gelbooru.com/images/.../xxx.gif or .jpg)
-    2) Option B — create /otokonoko.json at repo root:
-       [
-         "https://img3.gelbooru.com/images/ab/cd/abcdef123456.gif",
-         "https://img3.gelbooru.com/images/de/f0/def012345678.jpg"
-       ]
-       The page will auto-load it and use that instead of the embedded list.
-  */
+    const img = document.getElementById('pic');
+    const catSel = document.getElementById('cat');
+    const btnShuffle = document.getElementById('shuffle');
+    const btnCopy = document.getElementById('copy');
+    const logBox = document.getElementById('log');
 
-  // --- Embedded fallback list (replace with your favs; must be direct image URLs) ---
-  const IMAGES_FALLBACK = [
-    // put your own SFW otokonoko links here (gif/jpg/png):
-    // "https://img3.gelbooru.com/images/ab/cd/abcdef123456.gif",
-    // "https://img2.gelbooru.com/images/12/34/123456789abc.jpg",
-    // Temp placeholders (Imgur SFW) — replace with your own:
-    "https://i.imgur.com/3oYh8q0.jpeg",
-    "https://i.imgur.com/1k5m0mS.jpeg",
-    "https://i.imgur.com/2zHhQ8S.jpeg"
-  ];
+    // All available GIF endpoints on nekos.best (for random mode)
+    const GIF_CATEGORIES = [
+      "angry","baka","bite","blush","bored","cry","cuddle","dance","facepalm","feed",
+      "handhold","handshake","happy","highfive","hug","kick","kiss","laugh","lurk","nod",
+      "nom","nope","pat","peck","poke","pout","punch","run","shoot","shrug","slap","sleep",
+      "smile","smug","stare","think","thumbsup","tickle","wave","wink","yawn","yeet"
+    ];
 
-  const img = document.getElementById('pic');
-  const btnShuffle = document.getElementById('shuffle');
-  const btnCopy = document.getElementById('copyLink');
-  const logBox = document.getElementById('log');
+    let lastUrl = "";
 
-  let list = [...IMAGES_FALLBACK];
-  let lastUrl = "";
+    function log(m){ console.log(m); logBox.textContent = String(m); }
+    function setLoading(is){ btnShuffle.disabled = is; img.classList.remove('loaded'); }
 
-  function log(m){ console.log(m); logBox.textContent = String(m); }
-  function setLoading(is){ btnShuffle.disabled = is; img.classList.remove('loaded'); }
-
-  async function tryLoadExternalList() {
-    try {
-      const r = await fetch("otokonoko.json", { cache: "no-store" });
-      if (!r.ok) throw new Error("no json");
-      const arr = await r.json();
-      if (Array.isArray(arr) && arr.length) {
-        list = arr;
-        log(`Loaded ${arr.length} URLs from otokonoko.json`);
-      } else {
-        log("otokonoko.json empty or invalid, using embedded list");
-      }
-    } catch {
-      log("No otokonoko.json found, using embedded list");
+    function pickRandomCat() {
+      return GIF_CATEGORIES[Math.floor(Math.random() * GIF_CATEGORIES.length)];
     }
-  }
 
-  function pickRandom() {
-    return list[Math.floor(Math.random()*list.length)];
-  }
+    async function fetchNekosBestGif(cat) {
+      const chosen = (cat === "__random__") ? pickRandomCat() : cat;
+      const url = `https://nekos.best/api/v2/${encodeURIComponent(chosen)}`;
+      const ctrl = new AbortController();
+      const t = setTimeout(()=>ctrl.abort(), 12000);
+      const r = await fetch(url, { headers: { "accept":"application/json" }, signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const data = await r.json();
+      const item = data?.results?.[0];
+      if (!item?.url) throw new Error("No URL in response");
+      return { file: item.url, usedCat: chosen };
+    }
 
-  function showRandom() {
-    if (!list.length) return log("No images in list.");
-    setLoading(true);
-    const url = pickRandom();
-    lastUrl = url;
-    img.onload = () => { requestAnimationFrame(()=> img.classList.add('loaded')); setLoading(false); log("Loaded ✅"); };
-    img.onerror = () => { setLoading(false); log("img.onerror " + url); };
-    // force onload even if same src repeats
-    img.src = "";
-    requestAnimationFrame(()=> { img.src = url; log("Loading: " + url); });
-  }
+    function loadIntoImg(src) {
+      return new Promise((resolve, reject) => {
+        img.onload = () => { requestAnimationFrame(()=> img.classList.add('loaded')); resolve(); };
+        img.onerror = () => reject(new Error("img.onerror " + src));
+        img.src = ""; requestAnimationFrame(()=> img.src = src);
+      });
+    }
 
-  // UI
-  document.body.addEventListener('click', (e)=>{ if(!e.target.closest('.btn')) showRandom(); });
-  window.addEventListener('keydown', (e)=>{
-    if ([" ","Enter","r","R"].includes(e.key)) { e.preventDefault(); showRandom(); }
-    if (e.key === "c" || e.key === "C") copyLink();
-  });
-  btnShuffle.addEventListener('click', showRandom);
-  async function copyLink(){
-    if (!lastUrl) return;
-    try {
-      await navigator.clipboard.writeText(lastUrl);
-      btnCopy.textContent = "Copied!"; setTimeout(()=> btnCopy.textContent = "Copy link", 1200);
-    } catch { alert("Copy failed :("); }
-  }
-  btnCopy.addEventListener('click', copyLink);
+    async function showRandom(retries = 3) {
+      setLoading(true);
+      for (let i=1;i<=retries;i++) {
+        try {
+          const { file, usedCat } = await fetchNekosBestGif(catSel.value);
+          lastUrl = file;
+          log(`Try ${i}/${retries} • ${usedCat}\nLoading: ${file}`);
+          await loadIntoImg(file);
+          log(`Loaded ✅ • ${usedCat}`);
+          setLoading(false);
+          return;
+        } catch (e) {
+          console.warn(e); log(e.message || "load failed");
+        }
+      }
+      setLoading(false); log("All attempts failed. Press Shuffle to try again.");
+    }
 
-  // init
-  (async ()=>{
-    await tryLoadExternalList();
+    // UI
+    document.body.addEventListener('click', (e) => { if (!e.target.closest('#hud')) showRandom(); });
+    window.addEventListener('keydown', (e) => {
+      if ([" ","Enter","r","R"].includes(e.key)) { e.preventDefault(); showRandom(); }
+      if (e.key === "c" || e.key === "C") copyLink();
+    });
+    btnShuffle.addEventListener('click', showRandom);
+    catSel.addEventListener('change', showRandom);
+
+    async function copyLink(){
+      if (!lastUrl) return;
+      try { await navigator.clipboard.writeText(lastUrl);
+        btnCopy.textContent="Copied!"; setTimeout(()=>btnCopy.textContent="Copy link", 1200);
+      } catch { alert("Copy failed :("); }
+    }
+    btnCopy.addEventListener('click', copyLink);
+
+    // initial
     showRandom();
-  })();
   </script>
 </body>
 </html>
