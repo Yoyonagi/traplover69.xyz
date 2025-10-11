@@ -2,55 +2,197 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>traplover69.xyz</title>
+  <title>traplover69.xyz — SFW otokonoko gifs</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="robots" content="noindex,nofollow" />
+  <meta name="color-scheme" content="dark" />
   <style>
+    :root { --bg:#000; --fg:#e9e9f1; --muted:#9aa0a6; --accent:#ff7ad9; }
     html, body {
-      margin: 0;
-      height: 100%;
-      background: #000;
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      cursor: pointer;
+      margin: 0; height: 100%;
+      background: var(--bg);
+      display: grid; place-items: center;
+      overflow: hidden; cursor: pointer;
+      font: 14px/1.2 ui-sans-serif, system-ui, Inter, Segoe UI, Roboto, Arial;
+      color: var(--fg);
     }
-    img {
-      max-width: 100vw;
-      max-height: 100vh;
-      object-fit: contain;
+    img, video {
+      max-width: 100vw; max-height: 100vh;
+      object-fit: contain; display: block;
       transition: opacity .25s ease-in-out;
       opacity: 0;
     }
-    img.loaded { opacity: 1; }
+    .loaded { opacity: 1; }
+
+    .hud {
+      position: fixed; inset: 12px 12px auto auto;
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+      pointer-events: none;
+    }
+    .chip {
+      pointer-events: auto;
+      background: rgba(20,20,32,.65);
+      border: 1px solid rgba(255,255,255,.1);
+      backdrop-filter: blur(6px);
+      color: var(--fg);
+      padding: 8px 10px; border-radius: 999px;
+      user-select: none;
+    }
+    .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); display:inline-block; margin-right:6px; }
+    .btn {
+      pointer-events: auto;
+      background: rgba(30,30,48,.8);
+      color: var(--fg);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 10px;
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .help {
+      position: fixed; left: 12px; bottom: 12px;
+      opacity: .75; color: var(--muted);
+      background: rgba(12,12,20,.55);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 10px; padding: 8px 10px;
+      font-size: 12px;
+      backdrop-filter: blur(4px);
+      pointer-events: none;
+    }
+    a { color: #9ad; text-decoration: underline; }
   </style>
 </head>
 <body>
-  <img id="pic" alt="trap image" />
+  <img id="pic" alt="SFW otokonoko gif" referrerpolicy="no-referrer" />
+
+  <div class="hud">
+    <div id="modeChip" class="chip" title="Press T to toggle">
+      <span class="dot"></span><span id="modeLabel">otokonoko gifs (SFW)</span>
+    </div>
+    <button id="openPost" class="btn" title="Open source post (Danbooru)">Open post</button>
+    <button id="copyLink" class="btn" title="Copy direct image link">Copy link</button>
+    <button id="shuffle" class="btn" title="Shuffle (Space / Enter / R)">Shuffle</button>
+  </div>
+
+  <div class="help">
+    click anywhere to shuffle • Space/Enter/R = shuffle • T = toggle tag (otokonoko ↔ astolfo) • C = copy link
+  </div>
+
   <script>
+    // --- Config ---
+    const TAGS = {
+      otokonoko: "otokonoko rating:safe filetype:gif",
+      astolfo: "astolfo_(fate) rating:safe filetype:gif"
+    };
+    let currentMode = (new URLSearchParams(location.search).get("mode") === "astolfo") ? "astolfo" : "otokonoko";
+
+    // --- Elements ---
     const img = document.getElementById('pic');
+    const btnShuffle = document.getElementById('shuffle');
+    const btnOpenPost = document.getElementById('openPost');
+    const btnCopy = document.getElementById('copyLink');
+    const modeChip = document.getElementById('modeChip');
+    const modeLabel = document.getElementById('modeLabel');
+
+    let lastPostUrl = "#";
+    let lastImageUrl = "";
+
+    function setModeLabel() {
+      modeLabel.textContent = (currentMode === "astolfo")
+        ? "astolfo gifs (SFW)"
+        : "otokonoko gifs (SFW)";
+    }
+    setModeLabel();
+
+    function setLoading(is) {
+      btnShuffle.disabled = is;
+      img.classList.remove('loaded');
+    }
+
+    async function fetchDanbooruGif(tags) {
+      const url = `https://danbooru.donmai.us/posts.json?limit=1&random=true&tags=${encodeURIComponent(tags)}`;
+      // Abort after 10s
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 10000);
+      const res = await fetch(url, { headers: { "accept": "application/json" }, signal: ctrl.signal });
+      clearTimeout(t);
+      if (!res.ok) throw new Error("Danbooru HTTP " + res.status);
+      const data = await res.json();
+      const p = data?.[0];
+      const file = p?.file_url || p?.large_file_url || p?.source || "";
+      if (!file) throw new Error("No file URL in response");
+      return { file, id: p.id };
+    }
 
     async function showRandom() {
+      setLoading(true);
       try {
-        const res = await fetch("https://nekos.best/api/v2/kiss");
-        const data = await res.json();
-        const url = data.results?.[0]?.url;
-        if (!url) return console.warn("No image received");
+        const { file, id } = await fetchDanbooruGif(TAGS[currentMode]);
+        lastImageUrl = file;
+        lastPostUrl = `https://danbooru.donmai.us/posts/${id}`;
 
-        img.classList.remove('loaded');
-        img.onload = () => img.classList.add('loaded');
-        img.src = url;
+        // Smooth swap
+        const tmp = new Image();
+        tmp.referrerPolicy = "no-referrer";
+        tmp.onload = () => {
+          img.src = file;
+          // small delay to ensure the transition triggers
+          requestAnimationFrame(() => img.classList.add('loaded'));
+        };
+        tmp.onerror = () => { throw new Error("Image failed to load"); };
+        tmp.src = file;
       } catch (e) {
         console.error("API error:", e);
+        // ultra-safe fallback static SFW image
+        lastImageUrl = "https://i.imgur.com/3oYh8q0.jpeg";
+        lastPostUrl = "#";
+        img.src = lastImageUrl;
+        requestAnimationFrame(() => img.classList.add('loaded'));
+      } finally {
+        setLoading(false);
       }
     }
 
-    document.body.addEventListener('click', showRandom);
-    window.addEventListener('keydown', e => {
-      if ([" ", "Enter", "r", "R"].includes(e.key)) showRandom();
+    // --- Events ---
+    document.body.addEventListener('click', (e) => {
+      // avoid clicking HUD buttons re-triggering
+      if (e.target.closest('.btn') || e.target.closest('.chip')) return;
+      showRandom();
     });
 
-    showRandom(); // initial
+    window.addEventListener('keydown', (e) => {
+      if ([" ", "Enter", "r", "R"].includes(e.key)) { e.preventDefault(); showRandom(); }
+      if (e.key === "t" || e.key === "T") {
+        currentMode = (currentMode === "otokonoko") ? "astolfo" : "otokonoko";
+        // reflect in URL (no reload)
+        const usp = new URLSearchParams(location.search);
+        usp.set("mode", currentMode);
+        history.replaceState(null, "", "?" + usp.toString());
+        setModeLabel();
+        showRandom();
+      }
+      if (e.key === "c" || e.key === "C") copyLink();
+    });
+
+    btnShuffle.addEventListener('click', showRandom);
+    btnOpenPost.addEventListener('click', () => {
+      if (lastPostUrl && lastPostUrl !== "#") window.open(lastPostUrl, "_blank", "noopener");
+    });
+
+    async function copyLink() {
+      if (!lastImageUrl) return;
+      try {
+        await navigator.clipboard.writeText(lastImageUrl);
+        btnCopy.textContent = "Copied!";
+        setTimeout(() => btnCopy.textContent = "Copy link", 1200);
+      } catch {
+        alert("Copy failed :(");
+      }
+    }
+    btnCopy.addEventListener('click', copyLink);
+
+    // initial
+    showRandom();
   </script>
 </body>
 </html>
