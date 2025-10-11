@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>traplover69.xyz</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #000;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    img {
+      max-width: 100vw;
+      max-height: 100vh;
+      object-fit: contain;
+      transition: opacity .25s ease-in-out;
+      opacity: 0;
+    }
+    img.loaded { opacity: 1; }
+  </style>
+</head>
+<body>
+  <img id="pic" alt="trap image" />
+  <script>
+    const img = document.getElementById('pic');
+
+    async function showRandom() {
+      try {
+        const res = await fetch("https://nekos.best/api/v2/trap");
+        const data = await res.json();
+        const url = data.results?.[0]?.url;
+        if (!url) return console.warn("No image received");
+
+        img.classList.remove('loaded');
+        img.onload = () => img.classList.add('loaded');
+        img.src = url;
+      } catch (e) {
+        console.error("API error:", e);
+      }
+    }
+
+    document.body.addEventListener('click', showRandom);
+    window.addEventListener('keydown', e => {
+      if ([" ", "Enter", "r", "R"].includes(e.key)) showRandom();
+    });
+
+    showRandom(); // initial
+  </script>
+</body>
+</html>
