@@ -2,34 +2,43 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>traplover69.xyz — SFW otokonoko gifs</title>
+  <title>traplover69.xyz — SFW otokonoko GIFs</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="color-scheme" content="dark" />
-  <!-- allow images from anywhere (helps on GH Pages) -->
-  <meta http-equiv="Content-Security-Policy" content="img-src * data: blob:; default-src 'none'; style-src 'unsafe-inline';">
   <style>
     html, body {
-      margin:0; height:100%; background:#000;
-      display:grid; place-items:center; overflow:hidden; cursor:pointer;
-      font:14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#e9e9f1;
+      margin: 0; height: 100%;
+      background: #000; color: #e9e9f1;
+      display: grid; place-items: center;
+      overflow: hidden; cursor: pointer;
+      font: 14px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial;
     }
     img {
-      max-width:100vw; max-height:100vh; object-fit:contain; display:block;
-      transition:opacity .25s ease-in-out; opacity:0;
+      max-width: 100vw; max-height: 100vh;
+      object-fit: contain; display: block;
+      transition: opacity .25s ease-in-out;
+      opacity: 0;
     }
-    .loaded { opacity:1; }
+    .loaded { opacity: 1; }
     .hud {
-      position:fixed; right:12px; top:12px; display:flex; gap:8px; pointer-events:none;
+      position: fixed; right: 12px; top: 12px;
+      display: flex; gap: 8px; pointer-events: none;
     }
     .btn {
-      pointer-events:auto; cursor:pointer; padding:8px 10px; border-radius:10px;
-      background:rgba(30,30,48,.8); border:1px solid rgba(255,255,255,.12); color:#e9e9f1;
+      pointer-events: auto; cursor: pointer;
+      padding: 8px 10px; border-radius: 10px;
+      background: rgba(30,30,48,.85);
+      border: 1px solid rgba(255,255,255,.12);
+      color: #e9e9f1;
     }
     .log {
-      position:fixed; left:12px; top:12px; max-width:min(80vw,760px);
-      background:rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.1); border-radius:8px;
-      padding:6px 8px; font:12px/1.3 ui-monospace, Menlo, Consolas, monospace; color:#b7c0ff;
-      white-space:pre-wrap; pointer-events:none;
+      position: fixed; left: 12px; top: 12px;
+      max-width: min(80vw, 760px);
+      background: rgba(0,0,0,.55);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 8px; padding: 6px 8px;
+      font: 12px/1.3 ui-monospace, Menlo, Consolas, monospace;
+      color: #b7c0ff; white-space: pre-wrap; pointer-events: none;
     }
   </style>
 </head>
@@ -55,21 +64,21 @@
     function log(m) { console.log(m); logBox.textContent = String(m); }
     function setLoading(is) { btnShuffle.disabled = is; img.classList.remove('loaded'); }
 
-    // Try to prefer CDN host if available
+    // Prefer CDN host when the link is the main site
     function preferCdn(url) {
       try {
         const u = new URL(url);
         if (u.hostname === "danbooru.donmai.us") {
-          u.hostname = "cdn.donmai.us"; // CDNs are more likely to allow embedding
+          u.hostname = "cdn.donmai.us";
           return u.toString();
         }
         return url;
       } catch { return url; }
     }
 
-    async function fetchDanbooruGif() {
+    async function fetchRandomGifUrl() {
       const tags = "otokonoko rating:safe filetype:gif";
-      const api = `https://danbooru.donmai.us/posts.json?limit=1&random=true&only=id,file_url,large_file_url,preview_file_url,tag_string,rating&tags=${encodeURIComponent(tags)}`;
+      const api = `https://danbooru.donmai.us/posts.json?limit=1&random=true&only=id,file_url,large_file_url,preview_file_url,rating,tag_string&tags=${encodeURIComponent(tags)}`;
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 12000);
       const r = await fetch(api, { headers: { accept: "application/json" }, signal: ctrl.signal });
@@ -78,41 +87,47 @@
       const arr = await r.json();
       const p = arr?.[0];
       if (!p) throw new Error("No post returned");
-      // Prefer full gif; fallback to large or preview if needed
+      // Strongly prefer a true GIF; fallback to preview if needed
       let url = p.file_url || p.large_file_url || p.preview_file_url;
       if (!url) throw new Error("No file URL on post");
-      // Make sure it's really a gif (sometimes large_file_url might be webm)
       if (!/\.gif(\?|$)/i.test(url) && p.preview_file_url && /\.gif(\?|$)/i.test(p.preview_file_url)) {
         url = p.preview_file_url;
       }
-      return { url: preferCdn(url), post: `https://danbooru.donmai.us/posts/${p.id}` };
+      return { url: preferCdn(url), postUrl: `https://danbooru.donmai.us/posts/${p.id}` };
     }
 
     function loadIntoImg(src) {
       return new Promise((resolve, reject) => {
         img.onload = () => { requestAnimationFrame(() => img.classList.add('loaded')); resolve(); };
-        img.onerror = () => reject(new Error("img.onerror for " + src));
-        // reset to force onload even if same URL repeats
+        img.onerror = () => reject(new Error("img.onerror " + src));
+        // Reset first to ensure onload fires even if same src repeats
         img.src = "";
         requestAnimationFrame(() => { img.src = src; });
       });
     }
 
-    async function showRandom() {
+    // Try multiple random posts if the chosen GIF refuses to embed
+    async function showRandom(maxTries = 5) {
       setLoading(true);
-      try {
-        const { url, post } = await fetchDanbooruGif();
-        lastImageUrl = url;
-        lastPostUrl = post;
-        log("Loading: " + url);
-        await loadIntoImg(url);
-        log("Loaded ✅");
-      } catch (e) {
-        console.error(e);
-        log(e.message || "Failed to load");
-      } finally {
-        setLoading(false);
+      for (let i = 1; i <= maxTries; i++) {
+        try {
+          const { url, postUrl } = await fetchRandomGifUrl();
+          lastImageUrl = url;
+          lastPostUrl = postUrl;
+          log(`Try ${i}/${maxTries}\nLoading: ${url}`);
+          await loadIntoImg(url);
+          log("Loaded ✅");
+          setLoading(false);
+          return;
+        } catch (e) {
+          console.warn(e);
+          log((e && e.message) ? e.message : "Load failed");
+          // continue loop for another random pick
+        }
       }
+      // If we’re here, all attempts failed
+      setLoading(false);
+      log("All attempts failed. Press Shuffle to try again.");
     }
 
     // UI
@@ -128,8 +143,10 @@
     btnOpenPost.addEventListener('click', () => { if (lastPostUrl !== "#") window.open(lastPostUrl, "_blank", "noopener"); });
     async function copyLink() {
       if (!lastImageUrl) return;
-      try { await navigator.clipboard.writeText(lastImageUrl);
-        btnCopy.textContent = "Copied!"; setTimeout(()=> btnCopy.textContent="Copy link", 1200);
+      try {
+        await navigator.clipboard.writeText(lastImageUrl);
+        btnCopy.textContent = "Copied!";
+        setTimeout(() => btnCopy.textContent = "Copy link", 1200);
       } catch { alert("Copy failed :("); }
     }
     btnCopy.addEventListener('click', copyLink);
