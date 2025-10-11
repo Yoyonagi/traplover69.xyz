@@ -4,79 +4,41 @@
   <meta charset="utf-8" />
   <title>traplover69.xyz — SFW otokonoko gifs</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="robots" content="noindex,nofollow" />
   <meta name="color-scheme" content="dark" />
+  <!-- allow images from anywhere (helps on GH Pages) -->
+  <meta http-equiv="Content-Security-Policy" content="img-src * data: blob:; default-src 'none'; style-src 'unsafe-inline';">
   <style>
-    :root { --bg:#000; --fg:#e9e9f1; --muted:#9aa0a6; }
     html, body {
-      margin:0; height:100%;
-      background:var(--bg);
-      display:grid; place-items:center;
-      overflow:hidden; cursor:pointer;
-      font:14px/1.2 ui-sans-serif,system-ui,Inter,Segoe UI,Roboto,Arial;
-      color:var(--fg);
+      margin:0; height:100%; background:#000;
+      display:grid; place-items:center; overflow:hidden; cursor:pointer;
+      font:14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#e9e9f1;
     }
     img {
-      max-width:100vw; max-height:100vh;
-      object-fit:contain; display:block;
-      transition:opacity .25s ease-in-out;
-      opacity:0;
+      max-width:100vw; max-height:100vh; object-fit:contain; display:block;
+      transition:opacity .25s ease-in-out; opacity:0;
     }
     .loaded { opacity:1; }
     .hud {
-      position:fixed; right:12px; top:12px;
-      display:flex; gap:8px; flex-wrap:wrap; align-items:center;
-      pointer-events:none;
+      position:fixed; right:12px; top:12px; display:flex; gap:8px; pointer-events:none;
     }
     .btn {
-      pointer-events:auto; cursor:pointer;
-      background:rgba(30,30,48,.8);
-      color:var(--fg);
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:10px; padding:8px 10px;
-    }
-    .btn:disabled { opacity:.6; cursor:not-allowed; }
-    .chip {
-      pointer-events:none;
-      background:rgba(20,20,32,.65);
-      border:1px solid rgba(255,255,255,.1);
-      backdrop-filter:blur(6px);
-      border-radius:999px; padding:8px 10px;
-      color:var(--fg);
-    }
-    .help {
-      position:fixed; left:12px; bottom:12px;
-      opacity:.8; color:var(--muted);
-      background:rgba(12,12,20,.55);
-      border:1px solid rgba(255,255,255,.08);
-      border-radius:10px; padding:8px 10px; font-size:12px;
-      backdrop-filter:blur(4px);
-      pointer-events:none;
+      pointer-events:auto; cursor:pointer; padding:8px 10px; border-radius:10px;
+      background:rgba(30,30,48,.8); border:1px solid rgba(255,255,255,.12); color:#e9e9f1;
     }
     .log {
-      position:fixed; left:12px; top:12px;
-      max-width:min(80vw,760px);
-      background:rgba(0,0,0,.6);
-      border:1px solid rgba(255,255,255,.1);
-      border-radius:8px; padding:6px 8px;
-      font:12px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      color:#b7c0ff; white-space:pre-wrap; pointer-events:none;
+      position:fixed; left:12px; top:12px; max-width:min(80vw,760px);
+      background:rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.1); border-radius:8px;
+      padding:6px 8px; font:12px/1.3 ui-monospace, Menlo, Consolas, monospace; color:#b7c0ff;
+      white-space:pre-wrap; pointer-events:none;
     }
-    a { color:#9ad; text-decoration:underline; }
   </style>
 </head>
 <body>
   <img id="pic" alt="SFW otokonoko gif" referrerpolicy="no-referrer" />
-
   <div class="hud">
-    <div class="chip">otokonoko gifs (SFW)</div>
-    <button id="openPost" class="btn" title="Open source post (Danbooru)">Open post</button>
-    <button id="copyLink" class="btn" title="Copy direct image link">Copy link</button>
+    <button id="openPost" class="btn" title="Open Danbooru post">Open post</button>
+    <button id="copyLink" class="btn" title="Copy image URL">Copy link</button>
     <button id="shuffle" class="btn" title="Shuffle (Space / Enter / R)">Shuffle</button>
-  </div>
-
-  <div class="help">
-    click to shuffle • Space/Enter/R = shuffle • C = copy link
   </div>
   <div id="log" class="log" aria-live="polite"></div>
 
@@ -87,127 +49,88 @@
     const btnCopy = document.getElementById('copyLink');
     const logBox = document.getElementById('log');
 
-    // toggle this if you want to test direct loads
-    const PREFER_PROXY = true;
-
     let lastPostUrl = "#";
-    let lastDirectUrl = "";
-    let lastTriedUrl = "";
+    let lastImageUrl = "";
 
-    function log(msg) {
-      console.log(msg);
-      logBox.textContent = String(msg);
-    }
+    function log(m) { console.log(m); logBox.textContent = String(m); }
+    function setLoading(is) { btnShuffle.disabled = is; img.classList.remove('loaded'); }
 
-    function setLoading(is) {
-      btnShuffle.disabled = is;
-      img.classList.remove('loaded');
-    }
-
-    function buildProxyUrls(fullUrl) {
-      // keep full URL including query string!
-      const noProto = fullUrl.replace(/^https?:\/\//i, "");
-      return [
-        // Proxy #1 (short domain mirror)
-        `https://wsrv.nl/?url=${encodeURIComponent(noProto)}&n=-1`,
-        // Proxy #2 (main)
-        `https://images.weserv.nl/?url=${encodeURIComponent(noProto)}&n=-1`
-      ];
+    // Try to prefer CDN host if available
+    function preferCdn(url) {
+      try {
+        const u = new URL(url);
+        if (u.hostname === "danbooru.donmai.us") {
+          u.hostname = "cdn.donmai.us"; // CDNs are more likely to allow embedding
+          return u.toString();
+        }
+        return url;
+      } catch { return url; }
     }
 
     async function fetchDanbooruGif() {
       const tags = "otokonoko rating:safe filetype:gif";
-      const url = `https://danbooru.donmai.us/posts.json?limit=1&random=true&tags=${encodeURIComponent(tags)}`;
+      const api = `https://danbooru.donmai.us/posts.json?limit=1&random=true&only=id,file_url,large_file_url,preview_file_url,tag_string,rating&tags=${encodeURIComponent(tags)}`;
       const ctrl = new AbortController();
-      const timeout = setTimeout(() => ctrl.abort(), 12000);
-      const res = await fetch(url, { headers: { "accept": "application/json" }, signal: ctrl.signal });
-      clearTimeout(timeout);
-      if (!res.ok) throw new Error("Danbooru HTTP " + res.status);
-      const data = await res.json();
-      const p = data?.[0];
-      // Prefer file_url/large_file_url; if missing, bail
-      const file = p?.file_url || p?.large_file_url || "";
-      if (!file || !/\.gif(\?|$)/i.test(file)) {
-        throw new Error("No GIF URL in response");
+      const t = setTimeout(() => ctrl.abort(), 12000);
+      const r = await fetch(api, { headers: { accept: "application/json" }, signal: ctrl.signal });
+      clearTimeout(t);
+      if (!r.ok) throw new Error("Danbooru HTTP " + r.status);
+      const arr = await r.json();
+      const p = arr?.[0];
+      if (!p) throw new Error("No post returned");
+      // Prefer full gif; fallback to large or preview if needed
+      let url = p.file_url || p.large_file_url || p.preview_file_url;
+      if (!url) throw new Error("No file URL on post");
+      // Make sure it's really a gif (sometimes large_file_url might be webm)
+      if (!/\.gif(\?|$)/i.test(url) && p.preview_file_url && /\.gif(\?|$)/i.test(p.preview_file_url)) {
+        url = p.preview_file_url;
       }
-      return { file, id: p.id };
+      return { url: preferCdn(url), post: `https://danbooru.donmai.us/posts/${p.id}` };
     }
 
     function loadIntoImg(src) {
       return new Promise((resolve, reject) => {
-        img.onload = () => {
-          requestAnimationFrame(() => img.classList.add('loaded'));
-          resolve();
-        };
+        img.onload = () => { requestAnimationFrame(() => img.classList.add('loaded')); resolve(); };
         img.onerror = () => reject(new Error("img.onerror for " + src));
-        // force swap so onload fires even if same URL
+        // reset to force onload even if same URL repeats
         img.src = "";
         requestAnimationFrame(() => { img.src = src; });
       });
     }
 
-    async function tryLoadWithFallbacks(fileUrl) {
-      const candidates = PREFER_PROXY ? [...buildProxyUrls(fileUrl), fileUrl] : [fileUrl, ...buildProxyUrls(fileUrl)];
-      let errLast = null;
-      for (const url of candidates) {
-        try {
-          lastTriedUrl = url;
-          log("Loading: " + url);
-          await loadIntoImg(url);
-          return url;
-        } catch (e) {
-          errLast = e;
-          console.warn("Failed:", url, e);
-        }
-      }
-      throw errLast || new Error("All fallbacks failed");
-    }
-
     async function showRandom() {
       setLoading(true);
       try {
-        const { file, id } = await fetchDanbooruGif();
-        lastDirectUrl = file;
-        lastPostUrl = `https://danbooru.donmai.us/posts/${id}`;
-
-        const used = await tryLoadWithFallbacks(file);
-        log("Loaded ✅ via: " + used);
+        const { url, post } = await fetchDanbooruGif();
+        lastImageUrl = url;
+        lastPostUrl = post;
+        log("Loading: " + url);
+        await loadIntoImg(url);
+        log("Loaded ✅");
       } catch (e) {
         console.error(e);
-        log("Failed to load GIF. Fallback image.");
-        // Safe fallback (static SFW)
-        lastDirectUrl = "https://i.imgur.com/3oYh8q0.jpeg";
-        lastPostUrl = "#";
-        lastTriedUrl = lastDirectUrl;
-        await loadIntoImg(lastDirectUrl).catch(() => {});
+        log(e.message || "Failed to load");
       } finally {
         setLoading(false);
       }
     }
 
+    // UI
     document.body.addEventListener('click', (e) => {
       if (e.target.closest('.btn')) return;
       showRandom();
     });
-
     window.addEventListener('keydown', (e) => {
       if ([" ", "Enter", "r", "R"].includes(e.key)) { e.preventDefault(); showRandom(); }
       if (e.key === "c" || e.key === "C") copyLink();
     });
-
     btnShuffle.addEventListener('click', showRandom);
-    btnOpenPost.addEventListener('click', () => {
-      if (lastPostUrl && lastPostUrl !== "#") window.open(lastPostUrl, "_blank", "noopener");
-    });
-
+    btnOpenPost.addEventListener('click', () => { if (lastPostUrl !== "#") window.open(lastPostUrl, "_blank", "noopener"); });
     async function copyLink() {
-      try {
-        await navigator.clipboard.writeText(lastDirectUrl || lastTriedUrl || "");
-        btnCopy.textContent = "Copied!";
-        setTimeout(() => btnCopy.textContent = "Copy link", 1200);
-      } catch {
-        alert("Copy failed :(");
-      }
+      if (!lastImageUrl) return;
+      try { await navigator.clipboard.writeText(lastImageUrl);
+        btnCopy.textContent = "Copied!"; setTimeout(()=> btnCopy.textContent="Copy link", 1200);
+      } catch { alert("Copy failed :("); }
     }
     btnCopy.addEventListener('click', copyLink);
 
