@@ -4,22 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>traplover69 — otoko_no_ko (safe)</title>
-  <meta name="color-scheme" content="dark light" />
+  <meta name="color-scheme" content="dark" />
   <style>
     :root { color-scheme: dark; }
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background: #0b0b0c; color: #f2f3f5;
+      margin: 0; background: #0b0b0c; color: #f2f3f5;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       min-height: 100dvh; display: grid; place-items: center;
     }
     .card {
       width: min(900px, 94vw);
-      background: #141418;
-      border: 1px solid #2a2a30;
-      border-radius: 16px;
-      overflow: hidden;
+      background: #141418; border: 1px solid #2a2a30; border-radius: 16px; overflow: hidden;
       box-shadow: 0 12px 30px rgba(0,0,0,.35);
     }
     header, footer {
@@ -27,12 +23,15 @@
     }
     header h1 { font-size: 16px; margin: 0; opacity: .9; }
     .btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    button, .chip {
+    button, .chip, select, label.inline {
       background: #1e1e25; color: #fff; border: 1px solid #32323a;
-      padding: 8px 12px; border-radius: 10px; cursor: pointer; font-weight: 600;
+      padding: 8px 12px; border-radius: 10px; font-weight: 600;
     }
-    button:hover, .chip:hover { background: #262633; }
-    .chip { cursor: default; font-weight: 500; }
+    button { cursor: pointer; }
+    button:hover { background: #262633; }
+    .chip { font-weight: 500; }
+    select { padding: 6px 10px; }
+    label.inline { display: inline-flex; gap: 8px; align-items: center; font-weight: 500; }
     .imgwrap {
       background: #0e0e12; display: grid; place-items: center; min-height: 60vh;
       border-top: 1px solid #23232a; border-bottom: 1px solid #23232a;
@@ -45,9 +44,6 @@
     a { color: #8cc3ff; text-decoration: none; }
     a:hover { text-decoration: underline; }
     .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .select {
-      background: #1e1e25; color: #fff; border: 1px solid #32323a; border-radius: 10px; padding: 6px 10px;
-    }
     .note { opacity: .65; font-size: 12px; }
   </style>
 </head>
@@ -67,7 +63,7 @@
     </div>
 
     <footer>
-      <div class="row" style="min-width: 0;">
+      <div class="row" style="min-width:0;">
         <div class="meta" id="meta">Loading…</div>
       </div>
       <div class="row">
@@ -75,15 +71,17 @@
           Source:
           <a id="open" target="_blank" rel="noopener">Open post</a>
         </label>
-        <select id="tag" class="select" title="Tag preset">
+        <select id="tag" title="Tag preset">
           <option value="otoko_no_ko" selected>otoko_no_ko</option>
+          <option value="otoko_no_ko solo">otoko_no_ko + solo</option>
           <option value="crossdressing">crossdressing</option>
           <option value="femboy">femboy</option>
-          <option value="otoko_no_ko solo">otoko_no_ko + solo</option>
         </select>
-        <label class="note" title="Utilise un proxy si tu en configures un (Cloudflare Worker)">
-          Proxy:
-          <input type="checkbox" id="useProxy">
+        <label class="inline" title="Contourne le CORS JSON via AllOrigins">
+          <input type="checkbox" id="corsHelper" checked> CORS helper
+        </label>
+        <label class="inline" title="Si tu as déployé TON proxy (Cloudflare Worker)">
+          <input type="checkbox" id="useProxy"> Use my proxy
         </label>
       </div>
     </footer>
@@ -93,20 +91,38 @@
   // ====== CONFIG ======
   const BASE = 'https://danbooru.donmai.us/posts.json';
 
-  // Si tu déploies un Cloudflare Worker, mets ici son origin (sans slash final), ex:
-  // const PROXY_BASE = 'https://proxy.traplover69.xyz';
-  const PROXY_BASE = ''; // laisse vide pour désactiver par défaut
+  // Si tu déploies un Cloudflare Worker perso (optionnel):
+  // ex: const PROXY_BASE = 'https://proxy.traplover69.xyz';
+  const PROXY_BASE = ''; // laissez vide si tu n'en as pas
 
   // Exclusions strictes (stay SFW)
   const SAFE_EXCLUDES = [
-    '-loli', '-shota', '-young', '-toddler_con',
-    '-guro', '-graphic', '-bestiality', '-rape',
-    '-blood', '-ryona'
+    '-loli','-shota','-young','-toddler_con',
+    '-guro','-graphic','-bestiality','-rape',
+    '-blood','-ryona'
   ].join(' ');
 
-  // Storage keys
-  const DAILY_KEY = 'traplover69_daily_post';
-  const PREFS_KEY = 'traplover69_prefs';
+  // Fallback tag sets & query modes
+  const TAG_PRESETS = () => {
+    const sel = document.getElementById('tag').value || 'otoko_no_ko';
+    // On tente avec ton select en premier, puis variantes
+    return [
+      sel,
+      'otoko_no_ko',
+      'otoko_no_ko solo',
+      'crossdressing',
+      'femboy'
+    ];
+  };
+
+  const QUERY_MODES = [
+    // random: parfois bloqué côté API, mais on essaie d'abord
+    (tags) => `${BASE}?tags=${encodeURIComponent(tags)}&random=true&limit=1`,
+    // recent (ordre par id décroissant)
+    (tags) => `${BASE}?tags=${encodeURIComponent(tags + ' order:id_desc')}&limit=1`,
+    // popular (weekly si dispo)
+    (tags) => `${BASE}?tags=${encodeURIComponent(tags + ' order:rank')}&limit=1`
+  ];
 
   // ====== DOM ======
   const imgEl   = document.getElementById('pic');
@@ -115,63 +131,72 @@
   const nextBtn = document.getElementById('next');
   const dailyBtn= document.getElementById('daily');
   const tagSel  = document.getElementById('tag');
+  const corsCb  = document.getElementById('corsHelper');
   const proxyCb = document.getElementById('useProxy');
 
-  // ====== STATE ======
+  const DAILY_KEY = 'traplover69_daily_post_v2';
+  const PREFS_KEY = 'traplover69_prefs_v2';
+
   let dailyMode = false;
 
-  // Load prefs
+  // ====== utils ======
+  const todayKey = () => new Date().toISOString().slice(0,10);
+
+  function savePrefs() {
+    const p = { tag: tagSel.value, daily: dailyMode, cors: corsCb.checked, proxy: proxyCb.checked };
+    localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+  }
   (function restorePrefs(){
     try {
       const p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
       if (p.tag) tagSel.value = p.tag;
-      if (typeof p.daily === 'boolean') { dailyMode = p.daily; }
+      if (typeof p.daily === 'boolean') dailyMode = p.daily;
+      if (typeof p.cors === 'boolean') corsCb.checked = p.cors;
       if (typeof p.proxy === 'boolean') proxyCb.checked = p.proxy;
     } catch {}
   })();
 
-  function savePrefs() {
-    const p = { tag: tagSel.value, daily: dailyMode, proxy: proxyCb.checked };
-    localStorage.setItem(PREFS_KEY, JSON.stringify(p));
-  }
-
-  function setDailyUI() { dailyBtn.textContent = `Daily: ${dailyMode ? 'ON' : 'OFF'}`; }
-
-  function todayKey() { return new Date().toISOString().slice(0,10); } // YYYY-MM-DD
+  function setDailyUI(){ dailyBtn.textContent = `Daily: ${dailyMode ? 'ON' : 'OFF'}`; }
 
   function proxify(url) {
-    // Si proxy activé et PROXY_BASE défini, route via ?url=
-    if (proxyCb.checked && PROXY_BASE) {
-      return `${PROXY_BASE}/?url=${encodeURIComponent(url)}`;
-    }
+    if (proxyCb.checked && PROXY_BASE) return `${PROXY_BASE}/?url=${encodeURIComponent(url)}`;
     return url;
   }
 
-  function bestImageURL(post) {
-    return post.large_file_url || post.file_url || post.preview_file_url;
+  // CORS helper (AllOrigins) — pour JSON UNIQUEMENT
+  function corsifyJSON(url) {
+    if (!corsCb.checked) return url;
+    // AllOrigins renvoie le body brut avec CORS ok
+    return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
   }
 
-  function buildArtist(post) {
-    const artists = (post.tag_string_artist || '')
-      .split(' ')
-      .filter(Boolean)
-      .map(n => n.replace(/_/g, ' '));
-    return artists.length ? artists.join(', ') : null;
+  function bestImageURL(post){ return post.large_file_url || post.file_url || post.preview_file_url; }
+  function buildArtist(post){
+    const a = (post.tag_string_artist||'').split(' ').filter(Boolean).map(n=>n.replace(/_/g,' '));
+    return a.length ? a.join(', ') : null;
   }
 
-  function buildTagsQuery(baseTag) {
-    // Assemble: <base> + rating:safe + excludes
-    // random via &random=true
-    return `${baseTag} rating:safe ${SAFE_EXCLUDES}`;
-  }
-
-  async function fetchRandomPost(tagQuery) {
-    const url = proxify(`${BASE}?tags=${encodeURIComponent(tagQuery)}&random=true&limit=1`);
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' }});
+  async function fetchJSON(url) {
+    const u = corsifyJSON(url);
+    const res = await fetch(u, { headers: { 'Accept': 'application/json' } });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const arr = await res.json();
-    if (!Array.isArray(arr) || !arr.length) throw new Error('Empty results');
-    return arr[0];
+    return res.json();
+  }
+
+  async function fetchOnePost() {
+    const tagsList = TAG_PRESETS().map(t => `${t} rating:safe ${SAFE_EXCLUDES}`);
+    let lastErr = null;
+
+    for (const tags of tagsList) {
+      for (const build of QUERY_MODES) {
+        try {
+          const url = build(tags);
+          const arr = await fetchJSON(url);
+          if (Array.isArray(arr) && arr.length) return arr[0];
+        } catch(e) { lastErr = e; }
+      }
+    }
+    throw lastErr || new Error('No result');
   }
 
   function renderPost(post, baseTagShown) {
@@ -182,12 +207,10 @@
     const source = post.source && post.source.startsWith('http') ? post.source : null;
 
     if (img) {
-      imgEl.src = proxyCb.checked && PROXY_BASE ? proxify(img) : img; // proxy image si activé
+      // l'image n'a pas besoin de CORS helper; proxy optionnel si tu as le tien
+      imgEl.src = proxify(img);
       imgEl.alt = `${baseTagShown} (safe) • #${post.id}`;
-      imgEl.loading = 'eager';
-      imgEl.decoding = 'async';
     }
-
     openEl.href = postUrl;
 
     let txt = `#${post.id} • rating:${rating} • ${baseTagShown}`;
@@ -195,10 +218,9 @@
     if (source) txt += ` • source: ${source}`;
     metaEl.textContent = txt;
 
-    // Fallback si hotlink blocked
     imgEl.onerror = () => {
       if (post.preview_file_url && imgEl.src !== post.preview_file_url) {
-        imgEl.src = proxyCb.checked && PROXY_BASE ? proxify(post.preview_file_url) : post.preview_file_url;
+        imgEl.src = proxify(post.preview_file_url);
       } else {
         metaEl.textContent = 'Image blocked by host. Click "Open post".';
       }
@@ -206,13 +228,12 @@
   }
 
   async function loadRandom(saveForDaily=false) {
-    const sel = tagSel.value || 'otoko_no_ko';
-    const tagQuery = buildTagsQuery(sel);
-
     try {
       metaEl.textContent = 'Loading…';
       imgEl.removeAttribute('src');
-      const post = await fetchRandomPost(tagQuery);
+
+      const post = await fetchOnePost();
+      const sel = tagSel.value || 'otoko_no_ko';
       renderPost(post, sel);
 
       if (saveForDaily || dailyMode) {
@@ -236,32 +257,24 @@
     loadRandom(true);
   }
 
-  // ====== EVENTS ======
+  // ====== events ======
   dailyBtn.addEventListener('click', () => {
-    dailyMode = !dailyMode;
-    setDailyUI();
-    savePrefs();
+    dailyMode = !dailyMode; setDailyUI(); savePrefs();
     if (dailyMode) showDaily();
   });
-
   nextBtn.addEventListener('click', () => {
     if (dailyMode) localStorage.removeItem(DAILY_KEY);
     loadRandom();
   });
-
   tagSel.addEventListener('change', () => {
     savePrefs();
     if (dailyMode) localStorage.removeItem(DAILY_KEY);
     loadRandom();
   });
+  corsCb.addEventListener('change', () => { savePrefs(); if (dailyMode) showDaily(); else loadRandom(); });
+  proxyCb.addEventListener('change', () => { savePrefs(); if (dailyMode) showDaily(); else loadRandom(); });
 
-  proxyCb.addEventListener('change', () => {
-    savePrefs();
-    // Reload current/daily to apply proxy mode
-    if (dailyMode) showDaily(); else loadRandom();
-  });
-
-  // ====== INIT ======
+  // ====== init ======
   setDailyUI();
   if (dailyMode) showDaily(); else loadRandom();
   </script>
