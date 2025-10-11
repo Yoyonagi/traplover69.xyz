@@ -53,12 +53,20 @@
       backdrop-filter:blur(4px);
       pointer-events:none;
     }
-    a { color:#9ad; text-decoration:underline; }
+    .log {
+      position:fixed; left:12px; top:12px;
+      max-width:min(70vw,600px);
+      background:rgba(0,0,0,.6);
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:8px; padding:6px 8px;
+      font:12px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color:#b7c0ff; white-space:pre-wrap; pointer-events:none;
+    }
   </style>
 </head>
 <body>
   <!-- Image displays directly on your site -->
-  <img id="pic" alt="SFW otokonoko gif" referrerpolicy="no-referrer" />
+  <img id="pic" alt="SFW otokonoko gif" />
 
   <div class="hud">
     <div class="chip">otokonoko gifs (SFW)</div>
@@ -70,26 +78,50 @@
   <div class="help">
     click to shuffle • Space/Enter/R = shuffle • C = copy link
   </div>
+  <div id="log" class="log" aria-live="polite"></div>
 
   <script>
     const img = document.getElementById('pic');
     const btnShuffle = document.getElementById('shuffle');
     const btnOpenPost = document.getElementById('openPost');
     const btnCopy = document.getElementById('copyLink');
+    const logBox = document.getElementById('log');
+
+    // Force proxy to avoid hotlink/CORP blocks
+    const USE_PROXY = true;
 
     let lastPostUrl = "#";
     let lastImageUrl = "";
+    let lastDirectUrl = "";
+
+    function log(msg) {
+      console.log(msg);
+      logBox.textContent = String(msg);
+      // auto-clear after a bit
+      clearTimeout(logBox._t);
+      logBox._t = setTimeout(()=> logBox.textContent = "", 3000);
+    }
 
     function setLoading(is) {
       btnShuffle.disabled = is;
       img.classList.remove('loaded');
     }
 
+    function toProxy(url) {
+      try {
+        const u = new URL(url);
+        // images.weserv expects url param WITHOUT protocol
+        return `https://images.weserv.nl/?url=${encodeURIComponent(u.host + u.pathname)}&n=-1`; // n=-1 keeps original format (gif stays gif)
+      } catch {
+        return url;
+      }
+    }
+
     async function fetchDanbooruGif() {
       const tags = "otokonoko rating:safe filetype:gif";
       const url = `https://danbooru.donmai.us/posts.json?limit=1&random=true&tags=${encodeURIComponent(tags)}`;
       const ctrl = new AbortController();
-      const timeout = setTimeout(() => ctrl.abort(), 10000);
+      const timeout = setTimeout(() => ctrl.abort(), 12000);
       const res = await fetch(url, { headers: { "accept": "application/json" }, signal: ctrl.signal });
       clearTimeout(timeout);
       if (!res.ok) throw new Error("Danbooru HTTP " + res.status);
@@ -100,29 +132,33 @@
       return { file, id: p.id };
     }
 
+    function loadIntoImg(src) {
+      // Some browsers don't fire onload if same src; force swap
+      img.src = "";
+      // As a double safety, when image finishes, fade it in
+      img.onload = () => requestAnimationFrame(() => img.classList.add('loaded'));
+      img.onerror = () => log("Image failed to load (proxy/direct).");
+      img.src = src;
+    }
+
     async function showRandom() {
       setLoading(true);
       try {
         const { file, id } = await fetchDanbooruGif();
-        lastImageUrl = file;
+        lastDirectUrl = file;
         lastPostUrl = `https://danbooru.donmai.us/posts/${id}`;
+        lastImageUrl = USE_PROXY ? toProxy(file) : file;
 
-        // Preload then swap for smooth fade-in
-        const tmp = new Image();
-        tmp.referrerPolicy = "no-referrer";
-        tmp.onload = () => {
-          img.src = file;
-          requestAnimationFrame(() => img.classList.add('loaded'));
-        };
-        tmp.onerror = () => { throw new Error("Image failed to load"); };
-        tmp.src = file;
+        loadIntoImg(lastImageUrl);
+        log("Loaded ✅");
       } catch (e) {
-        console.error("API error:", e);
-        // Safe fallback (static SFW)
+        console.error(e);
+        log("API error. Fallback.");
+        // Ultra-safe fallback static SFW
         lastImageUrl = "https://i.imgur.com/3oYh8q0.jpeg";
         lastPostUrl = "#";
-        img.src = lastImageUrl;
-        requestAnimationFrame(() => img.classList.add('loaded'));
+        lastDirectUrl = lastImageUrl;
+        loadIntoImg(lastImageUrl);
       } finally {
         setLoading(false);
       }
@@ -144,9 +180,9 @@
     });
 
     async function copyLink() {
-      if (!lastImageUrl) return;
+      if (!lastDirectUrl && !lastImageUrl) return;
       try {
-        await navigator.clipboard.writeText(lastImageUrl);
+        await navigator.clipboard.writeText(lastDirectUrl || lastImageUrl);
         btnCopy.textContent = "Copied!";
         setTimeout(() => btnCopy.textContent = "Copy link", 1200);
       } catch {
