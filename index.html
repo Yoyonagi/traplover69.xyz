@@ -1,282 +1,35 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>traplover69 — otoko_no_ko (safe)</title>
+  <title>Traplover69</title>
   <meta name="color-scheme" content="dark" />
   <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
     body {
-      margin: 0; background: #0b0b0c; color: #f2f3f5;
+      width: 100%;
+      height: 100vh;
+      background: linear-gradient(135deg, #0b0b0c 0%, #1a1a2e 100%);
+      display: grid;
+      place-items: center;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      min-height: 100dvh; display: grid; place-items: center;
     }
-    .card {
-      width: min(900px, 94vw);
-      background: #141418; border: 1px solid #2a2a30; border-radius: 16px; overflow: hidden;
-      box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    
+    h1 {
+      font-size: clamp(48px, 12vw, 120px);
+      font-weight: 900;
+      background: linear-gradient(135deg, #ff006e, #8cc3ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 2px;
+      text-align: center;
     }
-    header, footer {
-      padding: 14px 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
-    }
-    header h1 { font-size: 16px; margin: 0; opacity: .9; }
-    .btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    button, .chip, select, label.inline {
-      background: #1e1e25; color: #fff; border: 1px solid #32323a;
-      padding: 8px 12px; border-radius: 10px; font-weight: 600;
-    }
-    button { cursor: pointer; }
-    button:hover { background: #262633; }
-    .chip { font-weight: 500; }
-    select { padding: 6px 10px; }
-    label.inline { display: inline-flex; gap: 8px; align-items: center; font-weight: 500; }
-    .imgwrap {
-      background: #0e0e12; display: grid; place-items: center; min-height: 60vh;
-      border-top: 1px solid #23232a; border-bottom: 1px solid #23232a;
-    }
-    img {
-      max-width: 100%; width: auto; height: auto; max-height: 82vh; object-fit: contain; display: block;
-      background: #0e0e12;
-    }
-    .meta { font-size: 14px; opacity: .95; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-    a { color: #8cc3ff; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .note { opacity: .65; font-size: 12px; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <header>
-      <h1>otoko_no_ko — rating:safe (Danbooru)</h1>
-      <div class="btns">
-        <button id="next">Next</button>
-        <button id="daily">Daily: OFF</button>
-        <span class="chip" title="Filtre safe + exclusions strictes">SAFE MODE</span>
-      </div>
-    </header>
-
-    <div class="imgwrap">
-      <img id="pic" alt="otoko_no_ko (safe)" referrerpolicy="no-referrer" loading="eager" decoding="async">
-    </div>
-
-    <footer>
-      <div class="row" style="min-width:0;">
-        <div class="meta" id="meta">Loading…</div>
-      </div>
-      <div class="row">
-        <label class="note">
-          Source:
-          <a id="open" target="_blank" rel="noopener">Open post</a>
-        </label>
-        <select id="tag" title="Tag preset">
-          <option value="otoko_no_ko" selected>otoko_no_ko</option>
-          <option value="otoko_no_ko solo">otoko_no_ko + solo</option>
-          <option value="crossdressing">crossdressing</option>
-          <option value="femboy">femboy</option>
-        </select>
-        <label class="inline" title="Contourne le CORS JSON via AllOrigins">
-          <input type="checkbox" id="corsHelper" checked> CORS helper
-        </label>
-        <label class="inline" title="Si tu as déployé TON proxy (Cloudflare Worker)">
-          <input type="checkbox" id="useProxy"> Use my proxy
-        </label>
-      </div>
-    </footer>
-  </div>
-
-  <script>
-  // ====== CONFIG ======
-  const BASE = 'https://danbooru.donmai.us/posts.json';
-
-  // Si tu déploies un Cloudflare Worker perso (optionnel):
-  // ex: const PROXY_BASE = 'https://proxy.traplover69.xyz';
-  const PROXY_BASE = ''; // laissez vide si tu n'en as pas
-
-  // Exclusions strictes (stay SFW)
-  const SAFE_EXCLUDES = [
-    '-loli','-shota','-young','-toddler_con',
-    '-guro','-graphic','-bestiality','-rape',
-    '-blood','-ryona'
-  ].join(' ');
-
-  // Fallback tag sets & query modes
-  const TAG_PRESETS = () => {
-    const sel = document.getElementById('tag').value || 'otoko_no_ko';
-    // On tente avec ton select en premier, puis variantes
-    return [
-      sel,
-      'otoko_no_ko',
-      'otoko_no_ko solo',
-      'crossdressing',
-      'femboy'
-    ];
-  };
-
-  const QUERY_MODES = [
-    // random: parfois bloqué côté API, mais on essaie d'abord
-    (tags) => `${BASE}?tags=${encodeURIComponent(tags)}&random=true&limit=1`,
-    // recent (ordre par id décroissant)
-    (tags) => `${BASE}?tags=${encodeURIComponent(tags + ' order:id_desc')}&limit=1`,
-    // popular (weekly si dispo)
-    (tags) => `${BASE}?tags=${encodeURIComponent(tags + ' order:rank')}&limit=1`
-  ];
-
-  // ====== DOM ======
-  const imgEl   = document.getElementById('pic');
-  const metaEl  = document.getElementById('meta');
-  const openEl  = document.getElementById('open');
-  const nextBtn = document.getElementById('next');
-  const dailyBtn= document.getElementById('daily');
-  const tagSel  = document.getElementById('tag');
-  const corsCb  = document.getElementById('corsHelper');
-  const proxyCb = document.getElementById('useProxy');
-
-  const DAILY_KEY = 'traplover69_daily_post_v2';
-  const PREFS_KEY = 'traplover69_prefs_v2';
-
-  let dailyMode = false;
-
-  // ====== utils ======
-  const todayKey = () => new Date().toISOString().slice(0,10);
-
-  function savePrefs() {
-    const p = { tag: tagSel.value, daily: dailyMode, cors: corsCb.checked, proxy: proxyCb.checked };
-    localStorage.setItem(PREFS_KEY, JSON.stringify(p));
-  }
-  (function restorePrefs(){
-    try {
-      const p = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}');
-      if (p.tag) tagSel.value = p.tag;
-      if (typeof p.daily === 'boolean') dailyMode = p.daily;
-      if (typeof p.cors === 'boolean') corsCb.checked = p.cors;
-      if (typeof p.proxy === 'boolean') proxyCb.checked = p.proxy;
-    } catch {}
-  })();
-
-  function setDailyUI(){ dailyBtn.textContent = `Daily: ${dailyMode ? 'ON' : 'OFF'}`; }
-
-  function proxify(url) {
-    if (proxyCb.checked && PROXY_BASE) return `${PROXY_BASE}/?url=${encodeURIComponent(url)}`;
-    return url;
-  }
-
-  // CORS helper (AllOrigins) — pour JSON UNIQUEMENT
-  function corsifyJSON(url) {
-    if (!corsCb.checked) return url;
-    // AllOrigins renvoie le body brut avec CORS ok
-    return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-  }
-
-  function bestImageURL(post){ return post.large_file_url || post.file_url || post.preview_file_url; }
-  function buildArtist(post){
-    const a = (post.tag_string_artist||'').split(' ').filter(Boolean).map(n=>n.replace(/_/g,' '));
-    return a.length ? a.join(', ') : null;
-  }
-
-  async function fetchJSON(url) {
-    const u = corsifyJSON(url);
-    const res = await fetch(u, { headers: { 'Accept': 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  }
-
-  async function fetchOnePost() {
-    const tagsList = TAG_PRESETS().map(t => `${t} rating:safe ${SAFE_EXCLUDES}`);
-    let lastErr = null;
-
-    for (const tags of tagsList) {
-      for (const build of QUERY_MODES) {
-        try {
-          const url = build(tags);
-          const arr = await fetchJSON(url);
-          if (Array.isArray(arr) && arr.length) return arr[0];
-        } catch(e) { lastErr = e; }
-      }
-    }
-    throw lastErr || new Error('No result');
-  }
-
-  function renderPost(post, baseTagShown) {
-    const img = bestImageURL(post);
-    const postUrl = `https://danbooru.donmai.us/posts/${post.id}`;
-    const artist = buildArtist(post);
-    const rating = (post.rating || 's').toUpperCase();
-    const source = post.source && post.source.startsWith('http') ? post.source : null;
-
-    if (img) {
-      // l'image n'a pas besoin de CORS helper; proxy optionnel si tu as le tien
-      imgEl.src = proxify(img);
-      imgEl.alt = `${baseTagShown} (safe) • #${post.id}`;
-    }
-    openEl.href = postUrl;
-
-    let txt = `#${post.id} • rating:${rating} • ${baseTagShown}`;
-    if (artist) txt += ` • artist: ${artist}`;
-    if (source) txt += ` • source: ${source}`;
-    metaEl.textContent = txt;
-
-    imgEl.onerror = () => {
-      if (post.preview_file_url && imgEl.src !== post.preview_file_url) {
-        imgEl.src = proxify(post.preview_file_url);
-      } else {
-        metaEl.textContent = 'Image blocked by host. Click "Open post".';
-      }
-    };
-  }
-
-  async function loadRandom(saveForDaily=false) {
-    try {
-      metaEl.textContent = 'Loading…';
-      imgEl.removeAttribute('src');
-
-      const post = await fetchOnePost();
-      const sel = tagSel.value || 'otoko_no_ko';
-      renderPost(post, sel);
-
-      if (saveForDaily || dailyMode) {
-        localStorage.setItem(DAILY_KEY, JSON.stringify({ date: todayKey(), tag: sel, post }));
-      }
-    } catch (err) {
-      console.error(err);
-      metaEl.textContent = 'No image found (safe). Try again.';
-    }
-  }
-
-  function showDaily() {
-    const k = todayKey();
-    try {
-      const saved = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null');
-      if (saved && saved.date === k) {
-        renderPost(saved.post, saved.tag || 'otoko_no_ko');
-        return;
-      }
-    } catch {}
-    loadRandom(true);
-  }
-
-  // ====== events ======
-  dailyBtn.addEventListener('click', () => {
-    dailyMode = !dailyMode; setDailyUI(); savePrefs();
-    if (dailyMode) showDaily();
-  });
-  nextBtn.addEventListener('click', () => {
-    if (dailyMode) localStorage.removeItem(DAILY_KEY);
-    loadRandom();
-  });
-  tagSel.addEventListener('change', () => {
-    savePrefs();
-    if (dailyMode) localStorage.removeItem(DAILY_KEY);
-    loadRandom();
-  });
-  corsCb.addEventListener('change', () => { savePrefs(); if (dailyMode) showDaily(); else loadRandom(); });
-  proxyCb.addEventListener('change', () => { savePrefs(); if (dailyMode) showDaily(); else loadRandom(); });
-
-  // ====== init ======
-  setDailyUI();
-  if (dailyMode) showDaily(); else loadRandom();
-  </script>
+  <h1>TRAPLOVER69</h1>
 </body>
 </html>
